@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PetEntity } from './entities/pet.entity';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { SpeciesEntity } from './entities/species.entity';
+import { UpdatePetDto } from './dto/update-pet.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -30,6 +31,29 @@ export class PetsService {
     });
 
     return this.petsRepository.save(newPet);
+  }
+
+  async updatePet(pet: PetEntity, data: UpdatePetDto): Promise<PetEntity> {
+    const { speciesKey, ...petData } = data;
+    const isSpeciesUpdated =
+      data?.speciesKey && data?.speciesKey !== pet.species.key;
+    if (isSpeciesUpdated) {
+      const species = await this.findSpeciesByKey(data.speciesKey);
+      await this.petsRepository.update(pet.id, { ...petData, species });
+    } else {
+      await this.petsRepository.update(pet.id, petData);
+    }
+
+    return this.findPetById(pet.id);
+  }
+
+  findPetById(id: string): Promise<PetEntity> {
+    return this.petsRepository.findOneOrFail({
+      where: {
+        id: id,
+      },
+      relations: ['species'],
+    });
   }
 
   findSpeciesByKey(key: string): Promise<SpeciesEntity> {

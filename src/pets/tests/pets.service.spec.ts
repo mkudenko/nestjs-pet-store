@@ -3,6 +3,7 @@ import { PetsService } from '../pets.service';
 import { PetEntity } from '../entities/pet.entity';
 import { CreatePetDto } from '../dto/create-pet.dto';
 import { SpeciesEntity } from '../entities/species.entity';
+import { UpdatePetDto } from '../dto/update-pet.dto';
 import { plainToClass } from 'class-transformer';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
@@ -28,7 +29,9 @@ const pet: PetEntity = plainToClass(PetEntity, {
 const PetsRepositoryMock = {
   create: jest.fn((petData) => Promise.resolve(petData)),
   find: jest.fn(() => Promise.resolve([pet])),
+  findOneOrFail: jest.fn((id: string) => Promise.resolve(pet)),
   save: jest.fn((petData) => Promise.resolve(pet)),
+  update: jest.fn((id: string, petData) => Promise.resolve(pet)),
 };
 
 const SpeciesRepositoryMock = {
@@ -101,5 +104,67 @@ describe('PetsService', () => {
     });
 
     expect(result).toEqual(pet);
+  });
+
+  it('can update an existing pet without updating species', async () => {
+    const speciesRepositorySpy = jest.spyOn(
+      SpeciesRepositoryMock,
+      'findOneByOrFail',
+    );
+
+    const data: UpdatePetDto = {
+      name: 'Foo',
+      dob: new Date('2020-02-15'),
+      speciesKey: 'cat',
+    };
+
+    const result = await service.updatePet(pet, data);
+
+    expect(PetsRepositoryMock.update).toHaveBeenCalledTimes(1);
+    expect(PetsRepositoryMock.update).toHaveBeenCalledWith(pet.id, {
+      name: 'Foo',
+      dob: new Date('2020-02-15'),
+    });
+
+    expect(SpeciesRepositoryMock.findOneByOrFail).toHaveBeenCalledTimes(0);
+
+    expect(result).toEqual(pet);
+  });
+
+  it('can update pet species', async () => {
+    const data: UpdatePetDto = {
+      speciesKey: 'dog',
+    };
+
+    const result = await service.updatePet(pet, data);
+
+    expect(SpeciesRepositoryMock.findOneByOrFail).toHaveBeenCalledTimes(1);
+
+    expect(PetsRepositoryMock.update).toHaveBeenCalledTimes(1);
+    expect(PetsRepositoryMock.update).toHaveBeenCalledWith(pet.id, {
+      species: dogSpecies,
+    });
+
+    expect(result).toEqual(pet);
+  });
+
+  it('can get a pet by id', async () => {
+    const petId = 'foo';
+
+    const result = await service.findPetById(petId);
+
+    expect(PetsRepositoryMock.findOneOrFail).toHaveBeenCalledTimes(1);
+    expect(PetsRepositoryMock.findOneOrFail).toHaveBeenCalledWith({
+      where: {
+        id: petId,
+      },
+      relations: ['species'],
+    });
+
+    expect(result).toEqual(pet);
+  });
+
+  afterEach(async () => {
+    jest.clearAllMocks();
   });
 });
